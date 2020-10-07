@@ -1,0 +1,19 @@
+{
+  "name": "goinput/phpnetcuplib",
+  "description": "Library for handling netcup API",
+  "type": "library",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Benjamin Schneider",
+      "email": "b.schneider@goinput.de"
+    }
+  ],
+  "minimum-stability": "stable",
+  "autoload": {
+    "psr-4": {
+      "goINPUT\\phpnetcuplib\\": "src/"
+    }
+  },
+  "require": {}
+}
