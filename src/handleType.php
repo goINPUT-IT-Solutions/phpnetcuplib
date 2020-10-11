@@ -6,6 +6,6 @@ namespace goINPUT\phpnetcuplib;
 
 class handleType
 {
-    public static string $organisation  = "organisation ",
-                         $person        = "person";
+    public static string $organisation = "organisation ",
+        $person = "person";
 }

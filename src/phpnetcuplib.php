@@ -10,6 +10,7 @@ use function curl_init;
 define("NETCUP_MISSING_API_KEY", 0x0457);
 define("NETCUP_MISSING_API_PASSWORD", 0x0458);
 define("NETCUP_MISSING_CUSTOMER_NUMBER", 0x0459);
+define("PHPNETCUPLIB_VERSION", "1.0.0");
 
 class phpnetcuplib
 {
@@ -18,7 +19,10 @@ class phpnetcuplib
         $customerNumber = "",
         $sessionID = "",
         $errorShortMessage = "",
-        $errorLongMessage = "";
+        $errorLongMessage = "",
+        $clientIdPrefix = "";
+
+    private bool $loggedOut = false;
 
     private $curl;
 
@@ -34,31 +38,9 @@ class phpnetcuplib
             $this->setCustomerNumber($customerNumber);
 
         $this->curl = curl_init("https://ccp.netcup.net/run/webservice/servers/endpoint.php?JSON");
-    }
+        curl_setopt($this->curl, CURLOPT_USERAGENT, "phpnetcuplib/" . PHPNETCUPLIB_VERSION . " (https://github.com/goINPUT-IT-Solutions/phpnetcuplib)");
 
-    /**
-     * Sets returned error from netcup api
-     * @param string $shortMessage
-     * @param string $longMessage
-     */
-    private function setErrorMessage(string $shortMessage, string $longMessage) {
-        $this->errorLongMessage = $longMessage;
-        $this->errorShortMessage = $shortMessage;
-    }
-
-    /**
-     * Returns short error message
-     * @return string
-     */
-    public function getShortErrorMessage() {
-        return $this->errorShortMessage;
-    }
-
-    /** Returns long error message
-     * @return string
-     */
-    public function getLongErrorMessage() {
-        return $this->errorLongMessage;
+        $this->clientIdPrefix = littleHelpers::generateRandomString(8);
     }
 
     /**
@@ -77,6 +59,23 @@ class phpnetcuplib
     public function setCustomerNumber($customerNumber)
     {
         $this->customerNumber = $customerNumber;
+    }
+
+    /**
+     * Returns short error message
+     * @return string
+     */
+    public function getShortErrorMessage()
+    {
+        return $this->errorShortMessage;
+    }
+
+    /** Returns long error message
+     * @return string
+     */
+    public function getLongErrorMessage()
+    {
+        return $this->errorLongMessage;
     }
 
     /**
@@ -121,21 +120,13 @@ class phpnetcuplib
         if ($validateApiCredentials === NETCUP_MISSING_CUSTOMER_NUMBER)
             throw new InvalidArgumentException("Missing Customer Number for netcup API");
 
-        $payload = json_encode([
-            "action" => "login",
-            "param" => [
-                "apikey" => $this->getApiKey(),
-                "apipassword" => $this->getApiPassword(),
-                "customernumber" => $this->getCustomerNumber()
-            ]
-        ]);
+        $params = [
+            "apikey" => $this->getApiKey(),
+            "apipassword" => $this->getApiPassword(),
+            "customernumber" => $this->getCustomerNumber()
+        ];
 
-        curl_setopt($this->curl, CURLOPT_POSTFIELDS, $payload);
-        curl_setopt($this->curl, CURLOPT_HTTPHEADER, array("Content-Type: application/json"));
-        curl_setopt($this->curl, CURLOPT_RETURNTRANSFER, true);
-
-        $result = curl_exec($this->curl);
-        $resultArray = json_decode($result, true);
+        $resultArray = $this->performAction("login", $params);
 
         if ($resultArray["status"] !== "success") {
             $this->setErrorMessage($resultArray["shortmessage"], $resultArray["longmessage"]);
@@ -199,22 +190,13 @@ class phpnetcuplib
         return $this->customerNumber;
     }
 
-    public function setSessionID($sessionid)
+    private function performAction(string $action, array $params)
     {
-        $this->sessionID = $sessionid;
-    }
+        $params["clientrequestid"] = $this->clientIdPrefix . littleHelpers::generateRandomString(6);
 
-    public function infoDomain(string $domain)
-    {
         $payload = json_encode([
-            "action" => "infoDomain",
-            "param" => [
-                "apikey" => $this->getApiKey(),
-                "apipassword" => $this->getApiPassword(),
-                "customernumber" => $this->getCustomerNumber(),
-                "apisessionid" => $this->getSessionID(),
-                "domainname" => $domain
-            ]
+            "action" => "$action",
+            "param" => $params
         ]);
 
         curl_setopt($this->curl, CURLOPT_POSTFIELDS, $payload);
@@ -222,7 +204,42 @@ class phpnetcuplib
         curl_setopt($this->curl, CURLOPT_RETURNTRANSFER, true);
 
         $result = curl_exec($this->curl);
-        var_dump($result);
+        return (json_decode($result, true));
+    }
+
+    /**
+     * Sets returned error from netcup api
+     * @param string $shortMessage
+     * @param string $longMessage
+     */
+    private function setErrorMessage(string $shortMessage, string $longMessage)
+    {
+        $this->errorLongMessage = $longMessage;
+        $this->errorShortMessage = $shortMessage;
+    }
+
+    public function setSessionID($sessionid)
+    {
+        $this->sessionID = $sessionid;
+    }
+
+    public function infoDomain(string $domain)
+    {
+        $params = [
+            "apikey" => $this->getApiKey(),
+            "apipassword" => $this->getApiPassword(),
+            "customernumber" => $this->getCustomerNumber(),
+            "apisessionid" => $this->getSessionID(),
+            "domainname" => $domain
+        ];
+
+        $resultArray = $this->performAction("infoDomain", $params);
+
+        if ($resultArray["status"] !== "success") {
+            $this->setErrorMessage($resultArray["shortmessage"], $resultArray["longmessage"]);
+            return false;
+        }
+        return true;
     }
 
     public function getSessionID()
@@ -235,7 +252,7 @@ class phpnetcuplib
      * @param string $type Type of the handle like organisation or person
      * @param string $name Full name of the contact.
      * @param string $street Street
-     * @param string $postalCode Postal code
+     * @param int $postalCode Postal code
      * @param string $city City
      * @param string $countryCode Country code in ISO 3166 ALPHA-2 format. 2 char codes like CH for Switzerland.
      * @param string $telephone Telephone number
@@ -246,65 +263,58 @@ class phpnetcuplib
     public function createHandle(
         string $type,
         string $name,
+        string $organisation,
         string $street,
         int $postalCode,
         string $city,
         string $countryCode,
         string $telephone,
-        string $email,
-        string $organisation = "") {
+        string $email
+    )
+    {
 
-        if(strlen($name) > 80)
+        if (strlen($name) > 80)
             throw new InvalidArgumentException("Name too long");
 
-        if(strlen($street) > 63)
+        if (strlen($street) > 63)
             throw new InvalidArgumentException("Street name too long");
 
         if (!preg_match('/[0-9]{0,12}/', $postalCode))
             throw new InvalidArgumentException("Postal code too long");
 
-        if(strlen($city) > 63)
+        if (strlen($city) > 63)
             throw new InvalidArgumentException("City name too long");
 
-        if(strlen($countryCode) > 2)
+        if (strlen($countryCode) > 2)
             throw new InvalidArgumentException("Country code too long");
 
         if (!preg_match('/\+[0-9]{1,4}\.([0-9]{1,57})/', $telephone))
             throw new InvalidArgumentException("Telephone number has wrong format");
 
-        $payload = json_encode([
-            "action" => "createHandle",
-            "param" => [
-                "customernumber" => $this->getCustomerNumber(),
-                "apikey" => $this->getApiKey(),
-                "apisessionid" => $this->getSessionID(),
-                "type" => $type,
-                "name" => $name,
-                "organisation" => $organisation,
-                "street" => $street,
-                "postalcode" => $postalCode,
-                "city" => $city,
-                "countrycode" => $countryCode,
-                "telephone" => $telephone,
-                "email" => $email,
-            ]
-        ]);
+        $params = [
+            "customernumber" => $this->getCustomerNumber(),
+            "apikey" => $this->getApiKey(),
+            "apisessionid" => $this->getSessionID(),
+            "type" => $type,
+            "name" => $name,
+            "organisation" => $organisation,
+            "street" => $street,
+            "postalcode" => $postalCode,
+            "city" => $city,
+            "countrycode" => $countryCode,
+            "telephone" => $telephone,
+            "email" => $email,
+        ];
 
-        curl_setopt($this->curl, CURLOPT_POSTFIELDS, $payload);
-        curl_setopt($this->curl, CURLOPT_HTTPHEADER, array("Content-Type: application/json"));
-        curl_setopt($this->curl, CURLOPT_RETURNTRANSFER, true);
+        $resultArray = $this->performAction("createHandle", $params);
 
-        $result         = curl_exec($this->curl);
-        $resultArray    = json_decode($result, true);
-
-        if($resultArray["status"] !== "success") {
+        if ($resultArray["status"] !== "success") {
             $this->setErrorMessage($resultArray["shortmessage"], $resultArray["longmessage"]);
             return false;
         }
 
         return ((int)$resultArray["responsedata"]["id"]);
     }
-
 
 
     function __destruct()
@@ -318,57 +328,99 @@ class phpnetcuplib
 
     public function logout()
     {
-        $payload = json_encode([
-            "action" => "logout",
-            "param" => [
+        if($this->loggedOut != true) {
+            $params = [
                 "apikey" => $this->getApiKey(),
                 "customernumber" => $this->getCustomerNumber(),
                 "apisessionid" => $this->getSessionID()
-            ]
-        ]);
+            ];
 
-        curl_setopt($this->curl, CURLOPT_POSTFIELDS, $payload);
-        curl_setopt($this->curl, CURLOPT_HTTPHEADER, array("Content-Type: application/json"));
-        curl_setopt($this->curl, CURLOPT_RETURNTRANSFER, true);
+            $resultArray = $this->performAction("logout", $params);
 
-        $result = curl_exec($this->curl);
-        $resultArray = json_decode($result, true);
+            if ($resultArray["status"] !== "success") {
+                $this->setErrorMessage($resultArray["shortmessage"], $resultArray["longmessage"]);
+                return false;
+            }
 
-        if ($resultArray["status"] !== "success") {
-            $this->setErrorMessage($resultArray["shortmessage"], $resultArray["longmessage"]);
-            return false;
+            curl_close($this->curl);
+            $this->loggedOut = true;
+            return true;
         }
-
-        curl_close($this->curl);
+        return false;
     }
 
     public function updateHandle(
         int $handleId,
         string $type,
         string $name,
+        string $organisation,
         string $street,
         int $postalCode,
         string $city,
         string $countryCode,
         string $telephone,
-        string $email ) {
+        string $email
+    )
+    {
 
-        if(strlen($name) > 80)
+        if (strlen($name) > 80)
             throw new InvalidArgumentException("Name too long");
 
-        if(strlen($street) > 63)
+        if (strlen($street) > 63)
             throw new InvalidArgumentException("Street name too long");
 
-        if (!preg_match('/^\d{10}$/', $postalCode))
+        if (!preg_match('/[0-9]{0,12}/', $postalCode))
             throw new InvalidArgumentException("Postal code too long");
 
-        if(strlen($city) > 63)
+        if (strlen($city) > 63)
             throw new InvalidArgumentException("City name too long");
 
-        if(strlen($countryCode) > 2)
+        if (strlen($countryCode) > 2)
             throw new InvalidArgumentException("Country code too long");
 
         if (!preg_match('/\+[0-9]{1,4}\.([0-9]{1,57})/', $telephone))
             throw new InvalidArgumentException("Telephone number has wrong format");
+
+        $params = [
+            "customernumber" => $this->getCustomerNumber(),
+            "apikey" => $this->getApiKey(),
+            "apisessionid" => $this->getSessionID(),
+            "handle_id" => $handleId,
+            "type" => $type,
+            "name" => $name,
+            "organisation" => $organisation,
+            "street" => $street,
+            "postalcode" => $postalCode,
+            "city" => $city,
+            "countrycode" => $countryCode,
+            "telephone" => $telephone,
+            "email" => $email,
+        ];
+
+        $resultArray = $this->performAction("updateHandle", $params);
+
+        if ($resultArray["status"] !== "success") {
+            $this->setErrorMessage($resultArray["shortmessage"], $resultArray["longmessage"]);
+            return false;
+        }
+        return true;
     }
+
+    public function deleteHandle(int $handleId) {
+        $params = [
+            "customernumber" => $this->getCustomerNumber(),
+            "apikey" => $this->getApiKey(),
+            "apisessionid" => $this->getSessionID(),
+            "handle_id" => $handleId
+        ];
+
+        $resultArray = $this->performAction("deleteHandle", $params);
+
+        if ($resultArray["status"] !== "success") {
+            $this->setErrorMessage($resultArray["shortmessage"], $resultArray["longmessage"]);
+            return false;
+        }
+        return true;
+    }
+
 }

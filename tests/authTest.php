@@ -1,6 +1,5 @@
 <?php
 
-use goINPUT\phpnetcuplib\handleType;
 use goINPUT\phpnetcuplib\phpnetcuplib;
 
 define("BASEPATH", __DIR__);
@@ -14,8 +13,9 @@ try {
     $phpnetcuplib->login($config["api_key"], $config["api_password"], $config["customer_number"]);
 
     $handleid = $phpnetcuplib->createHandle(
-        "person",
+        "organisation",
         "Test John",
+        "Test Org",
         "Test Street 1",
         99735,
         "Testhausen",
@@ -23,13 +23,29 @@ try {
         "+49.15773635424",
         "test@goinput.de");
 
-    if(!$handleid) {
+    if (!$handleid) {
+        print $phpnetcuplib->getLongErrorMessage() . PHP_EOL;
+        die(-1);
+    }
+    print("Handle $handleid created." . PHP_EOL);
+
+    if ($phpnetcuplib->updateHandle($handleid, "person", "Test John", "Test Org", "Test Street 2", 99735, "Testort", "DE", "+49.15773635424", "test2@goinput.de"))
+        print("Handle $handleid updated." . PHP_EOL);
+    else {
         print $phpnetcuplib->getLongErrorMessage() . PHP_EOL;
         die(-1);
     }
 
+    /*if ($phpnetcuplib->deleteHandle($handleid))
+        print("Handle $handleid deleted." . PHP_EOL);
+    else {
+        print $phpnetcuplib->getLongErrorMessage() . PHP_EOL;
+        die(-1);
+    }*/
 
 } catch (Exception $e) {
     echo $e->getMessage() . PHP_EOL;
     die(-1);
+} finally {
+    $phpnetcuplib->logout();
 }
