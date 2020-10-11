@@ -84,7 +84,7 @@ class phpnetcuplib
      * @param $domain
      * @return bool
      */
-    public function checkDomainAvailability(string $domain): bool
+    static public function checkDomainAvailability(string $domain): bool
     {
         if (gethostbyname($domain) != $domain) {
             return false;
