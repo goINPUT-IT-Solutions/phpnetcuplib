@@ -20,7 +20,7 @@ try {
         99735,
         "Testhausen",
         "DE",
-        "+49.15773635424",
+        "+49.123456789",
         "test@goinput.de");
 
     if (!$handleid) {
@@ -29,7 +29,7 @@ try {
     }
     print("Handle $handleid created." . PHP_EOL);
 
-    if ($phpnetcuplib->updateHandle($handleid, "person", "Test John", "Test Org", "Test Street 2", 99735, "Testort", "DE", "+49.15773635424", "test2@goinput.de"))
+    if ($phpnetcuplib->updateHandle($handleid, "person", "Test John", "Test Org", "Test Street 2", 99735, "Testort", "DE", "+49.123456789", "test2@goinput.de"))
         print("Handle $handleid updated." . PHP_EOL);
     else {
         print $phpnetcuplib->getLongErrorMessage() . PHP_EOL;
