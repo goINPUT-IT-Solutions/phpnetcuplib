@@ -48,4 +48,5 @@ try {
     die(-1);
 } finally {
     $phpnetcuplib->logout();
+    
 }
