@@ -26,6 +26,12 @@ class phpnetcuplib
 
     private $curl;
 
+    /**
+     * phpnetcuplib constructor.
+     * @param string|null $apiKey
+     * @param string|null $apiPassword
+     * @param string|null $customerNumber
+     */
     public function __construct(string $apiKey = null, string $apiPassword = null, string $customerNumber = null)
     {
         if (!empty ($apiKey))
@@ -62,6 +68,20 @@ class phpnetcuplib
     }
 
     /**
+     * Not a "real" netcup api function, but infoDomain did not that I want.
+     * (Do I use it wrong?)
+     * @param $domain
+     * @return bool
+     */
+    static public function checkDomainAvailability(string $domain): bool
+    {
+        if (gethostbyname($domain) != $domain) {
+            return false;
+        }
+        return true;
+    }
+
+    /**
      * Returns short error message
      * @return string
      */
@@ -76,20 +96,6 @@ class phpnetcuplib
     public function getLongErrorMessage()
     {
         return $this->errorLongMessage;
-    }
-
-    /**
-     * Not a "real" netcup api function, but infoDomain did not that I want.
-     * (Do I use it wrong?)
-     * @param $domain
-     * @return bool
-     */
-    static public function checkDomainAvailability(string $domain): bool
-    {
-        if (gethostbyname($domain) != $domain) {
-            return false;
-        }
-        return true;
     }
 
     /**
@@ -190,6 +196,12 @@ class phpnetcuplib
         return $this->customerNumber;
     }
 
+    /**
+     * Runs requests for the netcup API
+     * @param string $action Netcup API action
+     * @param array $params Array with params
+     * @return array Returns response array
+     */
     private function performAction(string $action, array $params)
     {
         $params["clientrequestid"] = $this->clientIdPrefix . littleHelpers::generateRandomString(6);
@@ -218,11 +230,19 @@ class phpnetcuplib
         $this->errorShortMessage = $shortMessage;
     }
 
+    /**
+     * Sets current session id
+     * @param $sessionid netcup API session ID
+     */
     public function setSessionID($sessionid)
     {
         $this->sessionID = $sessionid;
     }
 
+    /**
+     * @param string $domain
+     * @return array
+     */
     public function infoDomain(string $domain)
     {
         $params = [
@@ -239,7 +259,7 @@ class phpnetcuplib
             $this->setErrorMessage($resultArray["shortmessage"], $resultArray["longmessage"]);
             return false;
         }
-        return true;
+        return $resultArray;
     }
 
     public function getSessionID()
@@ -316,7 +336,6 @@ class phpnetcuplib
         return ((int)$resultArray["responsedata"]["id"]);
     }
 
-
     function __destruct()
     {
         try {
@@ -326,6 +345,10 @@ class phpnetcuplib
         }
     }
 
+    /**
+     * Logout from netcup API
+     * @return bool True if logout successful
+     */
     public function logout()
     {
         if($this->loggedOut != true) {
@@ -349,6 +372,20 @@ class phpnetcuplib
         return false;
     }
 
+    /**
+     * Update handle
+     * @param int $handleId Id of the contact that will be updated
+     * @param string $type type of the handle like organisation or person
+     * @param string $name full name of the contact
+     * @param string $organisation organisation like company name
+     * @param string $street street
+     * @param int $postalCode postcode
+     * @param string $city city
+     * @param string $countryCode countrycode in ISO 3166 ALPHA-2 format. 2 char codes like CH for Switzerland
+     * @param string $telephone telephone number
+     * @param string $email email address
+     * @return bool True if logout successful
+     */
     public function updateHandle(
         int $handleId,
         string $type,
@@ -406,6 +443,11 @@ class phpnetcuplib
         return true;
     }
 
+    /**
+     * Deletes handle
+     * @param int $handleId Id of the contact that will be updated
+     * @return bool True if logout successful
+     */
     public function deleteHandle(int $handleId) {
         $params = [
             "customernumber" => $this->getCustomerNumber(),
@@ -415,6 +457,58 @@ class phpnetcuplib
         ];
 
         $resultArray = $this->performAction("deleteHandle", $params);
+
+        if ($resultArray["status"] !== "success") {
+            $this->setErrorMessage($resultArray["shortmessage"], $resultArray["longmessage"]);
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * List all handles in netcup account
+     * @return array|false netcup response or false
+     */
+    public function listAllHandles() {
+        $params = [
+            "customernumber" => $this->getCustomerNumber(),
+            "apikey" => $this->getApiKey(),
+            "apisessionid" => $this->getSessionID()
+        ];
+
+        $resultArray = $this->performAction("deleteHandle", $params);
+
+        if ($resultArray["status"] !== "success") {
+            $this->setErrorMessage($resultArray["shortmessage"], $resultArray["longmessage"]);
+            return false;
+        }
+        return $resultArray;
+    }
+
+    public function createDomain(string $domainName, array $nameserver, array $contacts) {
+        $nameserverId = 1;
+        $nameserverArray = [];
+
+        foreach ($nameserver as $nameserverItem) {
+            $nameserverArray["nameserver" . $nameserverId]["hostname"] = $nameserverItem->getHostname();
+            $nameserverArray["nameserver" . $nameserverId]["ipv4"] = $nameserverItem->getIPv4();
+            $nameserverArray["nameserver" . $nameserverId]["ipv6"] = $nameserverItem->getIPv6();
+
+            $nameserverId++;
+            if($nameserverId > 8)
+                throw new Exception("Too many nameserver");
+        }
+
+        $params = [
+            "domainname" => $domainName,
+            "customernumber" => $this->getCustomerNumber(),
+            "contacts" => $contacts,
+            "nameservers" => $nameserverArray,
+            "apikey" => $this->getApiKey(),
+            "apisessionid" => $this->getSessionID()
+        ];
+
+        $resultArray = $this->performAction("createDomain", $params);
 
         if ($resultArray["status"] !== "success") {
             $this->setErrorMessage($resultArray["shortmessage"], $resultArray["longmessage"]);
