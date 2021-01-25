@@ -1,6 +1,6 @@
 <?php
 
-use goINPUT\phpnetcuplib\nameServerType;
+use goINPUT\phpnetcuplib\types\nameServerType;
 use goINPUT\phpnetcuplib\phpnetcuplib;
 
 define("BASEPATH", __DIR__);

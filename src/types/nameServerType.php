@@ -1,7 +1,7 @@
 <?php
 
 
-namespace goINPUT\phpnetcuplib;
+namespace goINPUT\phpnetcuplib\types;
 
 
 class nameServerType

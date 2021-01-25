@@ -1,7 +1,7 @@
 <?php
 
 
-namespace goINPUT\phpnetcuplib;
+namespace goINPUT\phpnetcuplib\types\types;
 
 
 class handleType

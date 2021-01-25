@@ -6,13 +6,14 @@ namespace goINPUT\phpnetcuplib;
 use Exception;
 use InvalidArgumentException;
 use function curl_init;
+use function goINPUT\phpnetcuplib\helpers\generateRandomString;
 
 define("NETCUP_MISSING_API_KEY", 0x0457);
 define("NETCUP_MISSING_API_PASSWORD", 0x0458);
 define("NETCUP_MISSING_CUSTOMER_NUMBER", 0x0459);
 define("PHPNETCUPLIB_VERSION", "1.0.0");
 
-class phpnetcuplib
+class phpnetcuplib implements iphpnetcuplib
 {
     private string  $apiKey = "",
         $apiPassword = "",
@@ -46,14 +47,14 @@ class phpnetcuplib
         $this->curl = curl_init("https://ccp.netcup.net/run/webservice/servers/endpoint.php?JSON");
         curl_setopt($this->curl, CURLOPT_USERAGENT, "phpnetcuplib/" . PHPNETCUPLIB_VERSION . " (https://github.com/goINPUT-IT-Solutions/phpnetcuplib)");
 
-        $this->clientIdPrefix = littleHelpers::generateRandomString(8);
+        $this->clientIdPrefix = generateRandomString(8);
     }
 
     /**
      * Set API Password
      * @param $apiPassword "netcup API Password"
      */
-    public function setApiPassword($apiPassword)
+    public function setApiPassword(string $apiPassword) :void
     {
         $this->apiPassword = $apiPassword;
     }
@@ -62,7 +63,7 @@ class phpnetcuplib
      * Set Customer Number
      * @param $customerNumber "netcup Customer Number"
      */
-    public function setCustomerNumber($customerNumber)
+    public function setCustomerNumber(int $customerNumber) :void
     {
         $this->customerNumber = $customerNumber;
     }
@@ -204,7 +205,7 @@ class phpnetcuplib
      */
     private function performAction(string $action, array $params)
     {
-        $params["clientrequestid"] = $this->clientIdPrefix . littleHelpers::generateRandomString(6);
+        $params["clientrequestid"] = $this->clientIdPrefix . generateRandomString(6);
 
         $payload = json_encode([
             "action" => "$action",
@@ -515,6 +516,10 @@ class phpnetcuplib
             return false;
         }
         return true;
+    }
+
+    private function ackpoll() {
+
     }
 
 }
